@@ -23,6 +23,30 @@ static UIButton *g_floatButton = nil;
 @implementation VCamFloatButton
 @end
 
+// ============================================================================
+// MARK: - 事件穿透悬浮窗
+// ============================================================================
+
+// 全屏悬浮窗会挡住宿主 App 的所有触摸事件（hit-test 命中透明背景时事件被吞掉），
+// 导致注入的 App 完全无法点击。必须重写 hitTest: 做事件穿透。
+@interface VCamOverlayWindow : UIWindow
+@end
+
+@implementation VCamOverlayWindow
+
+// 只有触摸真正落在交互控件（悬浮按钮及其子视图）上时才接收事件；
+// 落在透明背景上返回 nil，让事件穿透给底下的宿主 App 窗口。
+- (UIView *)hitTest:(CGPoint)point withEvent:(UIEvent *)event {
+    UIView *hit = [super hitTest:point withEvent:event];
+    UIView *root = self.rootViewController.view;
+    if (!hit || hit == self || hit == root) {
+        return nil;
+    }
+    return hit;
+}
+
+@end
+
 static void setupFloatButton(void);
 static void handlePanGesture(UIPanGestureRecognizer *gesture);
 static void handleTapGesture(UITapGestureRecognizer *gesture);
@@ -55,7 +79,8 @@ static void setupFloatButton() {
         initWithTarget:g_floatButton action:@selector(handleTap:)];
     [g_floatButton addGestureRecognizer:tap];
     
-    g_overlayWindow = [[UIWindow alloc] initWithFrame:screen];
+    // 使用事件穿透的窗口子类，避免挡住宿主 App 的触摸
+    g_overlayWindow = [[VCamOverlayWindow alloc] initWithFrame:screen];
     g_overlayWindow.windowLevel = UIWindowLevelAlert + 100;
     g_overlayWindow.hidden = NO;
     g_overlayWindow.backgroundColor = [UIColor clearColor];
